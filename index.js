@@ -95,14 +95,17 @@ const middlewareWrapper = (config) => {
   })
   // console.log(config)
 
-  return function*(next) {
+  const pathToJs = path.join(__dirname, 'koa-monitor-frontend.js')
+  const monitorFrontend = fs.readFileSync(pathToJs, encoding);
+
+  return async (ctx, next) => {
     const startTime = process.hrtime()
 
-    if (this.path === config.path) {
-      this.body = template(config)
-    } else if (this.url === `${config.path}/koa-monitor-frontend.js`) {
-      const pathToJs = path.join(__dirname, 'koa-monitor-frontend.js')
-      this.body = (yield fs.readFile(pathToJs, encoding)).replace('"SOCKET_PORT"', config.port)
+    if (ctx.originalUrl === config.path) {
+      ctx.body = template(config)
+    } else if (ctx.originalUrl === `${config.path}/koa-monitor-frontend.js`) {
+      ctx.type = 'application/javascript';
+      ctx.body = monitorFrontend.replace('"SOCKET_PORT"', config.externalPort || config.port)
     } else {
       let timer
       if (config.requestTimeout) {
@@ -111,7 +114,7 @@ const middlewareWrapper = (config) => {
         }, config.requestTimeout)
       }
 
-      yield next
+      await next();
 
       timer && clearTimeout(timer)
       record.call(this)
